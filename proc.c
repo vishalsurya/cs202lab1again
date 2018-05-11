@@ -88,7 +88,10 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
+	p->tickets=1;
+p->stride=0;
+p->pass=0;
+p->usagecount=0;
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -259,8 +262,12 @@ exit(void)
       if(p->state == ZOMBIE)
         wakeup1(initproc);
     }
-  }
-
+  
+if(p->name[4]=='1'|| p->name[4]=='2'|| p->name[4]=='3')
+{
+cprintf("Process %s executed %d\t", p->name,p->usagecount);
+}
+}
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
   sched();
@@ -329,22 +336,46 @@ scheduler(void)
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
+acquire(&ptable.lock);
+   struct proc *minProc;int min =10000;
     // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
+    
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
+if(p->state ==RUNNABLE && p->pass <min){
+minProc=p;
+min=minProc->pass;
+}
+}
+if(min!=10000){
+p=minProc;
+p->stride =10000/p->tickets;
+p->pass +=p->stride;
+if(p->pass >=10000){
+struct proc *aProc;
+for(aProc=ptable.proc;aProc<&ptable.proc[NPROC];++aProc){
+aProc->pass =0;
+}
+}
+p->usagecount+=1;
+c->proc=p;
+switchuvm(p);
+p->state=RUNNING;
+swtch(&(c->scheduler),p->context);
+switchkvm();
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+    
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+ // c->proc = p;
+     // switchuvm(p);
+//      p->state = RUNNING;
+
+  //    swtch(&(c->scheduler), p->context);
+    //  switchkvm();
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
@@ -495,6 +526,47 @@ kill(int pid)
   release(&ptable.lock);
   return -1;
 }
+void info(int choice){
+struct proc *p;
+
+int processes_count=0;
+switch(choice){
+case 1:
+for(p=ptable.proc;p<&ptable.proc[NPROC];p++)
+{
+processes_count++;
+
+}
+cprintf("\n number of processes :%d\n",processes_count);
+break;
+case 2:
+cprintf("\n Number of system calls of a process:%d \n",count);
+break;
+case 3:
+p=myproc();
+cprintf("\n Number of memory pages used in a current  process :%d\n",p->sz/4096);
+break;
+default :cprintf("\n Wrong Choice entered..!Please enter a valid choice \n");
+}
+
+}
+int stride(int tickets){
+int i;
+struct proc *p;
+acquire(&ptable.lock);
+for(i=0;i<NPROC;i++){
+p=myproc();
+if(p->state==UNUSED)
+return -1;
+p->tickets=tickets;
+release(&ptable.lock);
+return 0;
+}
+release(&ptable.lock);
+return -1;
+}
+
+
 
 //PAGEBREAK: 36
 // Print a process listing to console.  For debugging.
