@@ -534,6 +534,7 @@ switch(choice){
 case 1:
 for(p=ptable.proc;p<&ptable.proc[NPROC];p++)
 {
+if(p->state ==RUNNING)
 processes_count++;
 
 }
